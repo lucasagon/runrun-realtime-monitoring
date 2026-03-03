@@ -1,0 +1,199 @@
+{
+  "name": "[RunRun] ACTIVE_USERS | Staging -> Analytics",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into runrun_analytics.f_task_events (\n    raw_id,\n    sk_task,\n    sk_board,\n    performer_id,\n    event_type,\n    happened_at,\n    event_date,\n    created_at\n)\nselect\n    t.raw_id,\n    dt.sk_task,\n    db.sk_board,\n    t.performer_id,\n    t.event_type,\n    t.happened_at,\n    t.happened_at::date,\n    t.created_at\nfrom runrun_staging.task_events t\njoin runrun_analytics.dim_tasks dt\n    on dt.task_id = t.task_id\nleft join runrun_analytics.dim_boards db\n    on db.board_id = dt.board_id\non conflict (raw_id) do nothing;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        864,
+        0
+      ],
+      "id": "47e5ac1e-11aa-4416-bc35-c544625d9ffa",
+      "name": "f_task_events",
+      "credentials": {
+        "postgres": {
+          "id": "Jztz3shgyqyCJR7y",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into runrun_analytics.dim_users (\n    user_id,\n    name,\n    email,\n    position,\n    is_manager,\n    on_vacation,\n    extracted_at\n)\nselect\n    id,\n    name,\n    email,\n    position,\n    is_manager,\n    on_vacation,\n    extracted_at\nfrom runrun_staging.users\non conflict (user_id) do update\nset\n    name = excluded.name,\n    email = excluded.email,\n    position = excluded.position,\n    is_manager = excluded.is_manager,\n    on_vacation = excluded.on_vacation,\n    extracted_at = excluded.extracted_at\nwhere runrun_analytics.dim_users.extracted_at < excluded.extracted_at;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        224,
+        0
+      ],
+      "id": "21da69a1-b811-4f5a-a417-14443b6c744b",
+      "name": "dim_users",
+      "credentials": {
+        "postgres": {
+          "id": "Jztz3shgyqyCJR7y",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into runrun_analytics.task_current_state (\n    task_id,\n    performer_id,\n    current_status,\n    happened_at,\n    updated_at,\n    title,\n    board_name\n)\nselect\n    t.task_id,\n    t.performer_id,\n    t.event_type,\n    t.happened_at,\n    now(),\n    t.title,\n    b.name\nfrom (\n    select *,\n           row_number() over (\n               partition by task_id\n               order by happened_at desc, raw_id desc\n           ) as rn\n    from runrun_staging.task_events\n) t\nleft join runrun_staging.boards b\n    on b.id = t.board_id\nwhere rn = 1\non conflict (task_id) do update\nset\n    performer_id = excluded.performer_id,\n    current_status = excluded.current_status,\n    happened_at = excluded.happened_at,\n    updated_at = now(),\n    title = excluded.title,\n    board_name = excluded.board_name;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1088,
+        0
+      ],
+      "id": "479a311b-c632-4742-b924-66a772175d81",
+      "name": "task_current_state",
+      "credentials": {
+        "postgres": {
+          "id": "Jztz3shgyqyCJR7y",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "fe4ec1f8-38a3-4cee-bc1e-ad996d64bd2f",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into runrun_analytics.dim_boards (\n    board_id,\n    board_name,\n    extracted_at\n)\nselect\n    id,\n    name,\n    _airbyte_extracted_at\nfrom runrun_raw.boards\non conflict (board_id) do update\nset\n    board_name = excluded.board_name,\n    extracted_at = excluded.extracted_at\nwhere runrun_analytics.dim_boards.extracted_at < excluded.extracted_at;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        432,
+        0
+      ],
+      "id": "8a0fa07c-1714-4b8f-8177-ff3a40373559",
+      "name": "dim_boards",
+      "credentials": {
+        "postgres": {
+          "id": "Jztz3shgyqyCJR7y",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into runrun_analytics.dim_tasks (\n    task_id,\n    title,\n    board_id,\n    extracted_at\n)\nselect\n    task_id,\n    title,\n    board_id,\n    max(created_at)\nfrom runrun_staging.task_events\ngroup by task_id, title, board_id\non conflict (task_id) do update\nset\n    title = excluded.title,\n    board_id = excluded.board_id,\n    extracted_at = excluded.extracted_at;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        640,
+        0
+      ],
+      "id": "10c61d47-e6b6-42e5-8245-68acb71eddbe",
+      "name": "dim_tasks",
+      "credentials": {
+        "postgres": {
+          "id": "Jztz3shgyqyCJR7y",
+          "name": "Supabase"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "f_task_events": {
+      "main": [
+        [
+          {
+            "node": "task_current_state",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "dim_users": {
+      "main": [
+        [
+          {
+            "node": "dim_boards",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "dim_users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "dim_boards": {
+      "main": [
+        [
+          {
+            "node": "dim_tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "dim_tasks": {
+      "main": [
+        [
+          {
+            "node": "f_task_events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "task_current_state": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "3f14d264-b003-48d3-babb-54163fc11c5a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f5b98fa47ce01e3746cd403cb73e594cf1b27444e7eeb743ddda121d0332c710"
+  },
+  "id": "wyKDZ55JXLdWXqFN",
+  "tags": []
+}

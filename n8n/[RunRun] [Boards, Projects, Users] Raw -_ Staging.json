@@ -1,0 +1,137 @@
+{
+  "name": "[RunRun] [Boards, Projects, Users] Raw -> Staging",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 3
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "8ed377ec-7f5f-4f32-b45f-034847245e4c",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into runrun_staging.boards (\n    id,\n    name,\n    is_public,\n    is_default,\n    is_editable,\n    dashboard_id,\n    quick_create_is_enabled,\n    allow_members_to_create_forms,\n    extracted_at\n)\nselect distinct on (id)\n    id,\n    name,\n    is_public,\n    is_default,\n    is_editable,\n    dashboard_id,\n    quick_create_is_enabled,\n    allow_members_to_create_forms,\n    _airbyte_extracted_at\nfrom runrun_raw.boards\norder by id, _airbyte_extracted_at desc\non conflict (id) do update\nset\n    name = excluded.name,\n    is_public = excluded.is_public,\n    is_default = excluded.is_default,\n    is_editable = excluded.is_editable,\n    dashboard_id = excluded.dashboard_id,\n    quick_create_is_enabled = excluded.quick_create_is_enabled,\n    allow_members_to_create_forms = excluded.allow_members_to_create_forms,\n    extracted_at = excluded.extracted_at\nwhere runrun_staging.boards.extracted_at < excluded.extracted_at;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        224,
+        0
+      ],
+      "id": "41836dff-048f-476e-bf3b-afa2e1923adc",
+      "name": "BOARDS",
+      "credentials": {
+        "postgres": {
+          "id": "Jztz3shgyqyCJR7y",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into runrun_staging.projects (\n    id,\n    name,\n    client_id,\n    client_name,\n    is_active,\n    is_closed,\n    time_worked,\n    cost_total,\n    tasks_count,\n    extracted_at\n)\nselect distinct on (id)\n    id,\n    name,\n    client_id,\n    client_name,\n    is_active,\n    is_closed,\n    time_worked,\n    cost_total,\n    tasks_count,\n    _airbyte_extracted_at\nfrom runrun_raw.projects\norder by id, _airbyte_extracted_at desc\non conflict (id) do update\nset\n    name = excluded.name,\n    client_id = excluded.client_id,\n    client_name = excluded.client_name,\n    is_active = excluded.is_active,\n    is_closed = excluded.is_closed,\n    time_worked = excluded.time_worked,\n    cost_total = excluded.cost_total,\n    tasks_count = excluded.tasks_count,\n    extracted_at = excluded.extracted_at\nwhere runrun_staging.projects.extracted_at < excluded.extracted_at;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        448,
+        0
+      ],
+      "id": "ee6643a6-9529-4e89-bf08-4318bac81238",
+      "name": "PROJECTS",
+      "credentials": {
+        "postgres": {
+          "id": "Jztz3shgyqyCJR7y",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into runrun_staging.users (\n    id,\n    name,\n    email,\n    position,\n    team_ids,\n    cost_hour,\n    is_manager,\n    is_master,\n    on_vacation,\n    extracted_at\n)\nselect distinct on (id)\n    id,\n    name,\n    email,\n    position,\n    team_ids,\n    cost_hour,\n    is_manager,\n    is_master,\n    on_vacation,\n    _airbyte_extracted_at\nfrom runrun_raw.users\norder by id, _airbyte_extracted_at desc\non conflict (id) do update\nset\n    name = excluded.name,\n    email = excluded.email,\n    position = excluded.position,\n    team_ids = excluded.team_ids,\n    cost_hour = excluded.cost_hour,\n    is_manager = excluded.is_manager,\n    is_master = excluded.is_master,\n    on_vacation = excluded.on_vacation,\n    extracted_at = excluded.extracted_at\nwhere runrun_staging.users.extracted_at < excluded.extracted_at;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        672,
+        0
+      ],
+      "id": "6da12114-239a-491d-b6c0-aff0320e6b8f",
+      "name": "USERS",
+      "credentials": {
+        "postgres": {
+          "id": "Jztz3shgyqyCJR7y",
+          "name": "Supabase"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "BOARDS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BOARDS": {
+      "main": [
+        [
+          {
+            "node": "PROJECTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PROJECTS": {
+      "main": [
+        [
+          {
+            "node": "USERS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "85bdd311-666b-498e-b5e7-173a217be03e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f5b98fa47ce01e3746cd403cb73e594cf1b27444e7eeb743ddda121d0332c710"
+  },
+  "id": "c9XHHXhXAuu7jZdgfXoms",
+  "tags": []
+}
